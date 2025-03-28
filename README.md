@@ -1,6 +1,6 @@
 # Electron + Vite + Vue + Tailwind Boilerplate
 
-This project serves as a starting point for building cross-platform desktop applications using Electron, Vite, Vue 3, and Tailwind CSS. It provides a basic structure, build configurations, and a simple window management pattern inherited from the `gpt-assistant-builder` project.
+This project serves as a starting point for building cross-platform desktop applications using Electron, Vite, Vue 3, and Tailwind CSS. It provides a basic structure, build configurations, and a simple window management pattern.
 
 ## Features
 
