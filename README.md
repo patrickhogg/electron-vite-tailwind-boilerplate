@@ -129,3 +129,5 @@ The distributable files will be located in the `dist/` directory.
 ## License
 
 This project is intended as a boilerplate and does not specify a license by default. Feel free to add your own license file (e.g., `LICENSE.md`).
+
+Test line for git tools.
