@@ -6,9 +6,8 @@
       <span :class="statusColor" class="text-sm font-medium px-2 py-0.5 rounded">
         Status: {{ registrationStatus }}
       </span>
-      <button @click="openSettings" class="text-gray-400 hover:text-white focus:outline-none">
-        <!-- Simple Gear Icon (replace with SVG later if desired) -->
-        <span class="text-xl">&#9881;</span>
+      <button @click="openSettings" title="Settings" class="text-gray-400 hover:text-white focus:outline-none px-2">
+        <font-awesome-icon icon="fa-solid fa-gear" size="lg" />
       </button>
     </header>
 
@@ -60,15 +59,13 @@
       <div class="flex justify-around w-full max-w-xs pt-4">
         <button @click="handleCallAction" :disabled="!canCallOrAnswer"
                 :class="callButtonClass"
-                class="p-4 rounded-full text-white text-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 transition duration-150 ease-in-out">
-          <!-- Phone Icon (replace with SVG later) -->
-          &#128222;
+                class="p-4 rounded-full text-white text-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 transition duration-150 ease-in-out flex items-center justify-center w-16 h-16">
+          <font-awesome-icon icon="fa-solid fa-phone" />
         </button>
         <button @click="handleHangup" :disabled="!canHangup"
-                class="p-4 rounded-full text-white text-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 transition duration-150 ease-in-out"
+                class="p-4 rounded-full text-white text-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 transition duration-150 ease-in-out flex items-center justify-center w-16 h-16"
                 :class="canHangup ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' : 'bg-gray-500 cursor-not-allowed'">
-          <!-- Hangup Icon (replace with SVG later) -->
-          &#128231;
+           <font-awesome-icon icon="fa-solid fa-phone-slash" />
         </button>
       </div>
 
