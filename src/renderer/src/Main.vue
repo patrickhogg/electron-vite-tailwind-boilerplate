@@ -85,6 +85,10 @@ let removeRegStatusListener = null;
 let removeCallStateListener = null;
 let removeErrorListener = null;
 let removeStreamListener = null; // Listener for remote audio stream
+let removeConfigListener = null; // Listener for config updates (for output device)
+
+// --- Refs for Config ---
+const currentConfig = ref(null);
 
 // --- Computed Properties ---
 const statusColor = computed(() => {
@@ -232,11 +236,25 @@ onMounted(async () => {
       registrationStatus.value = await window.electronAPI.invoke('sip:get-registration-status');
       // Potentially get initial call state too if needed
       // callState.value = await window.electronAPI.invoke('sip:get-call-state');
+
+      // Get initial config to know the output device
+      currentConfig.value = await window.electronAPI.invoke('settings:get-config');
+      await setAudioOutputDevice(); // Apply initial output device
+
   } catch(err) {
-      console.error("Error getting initial status:", err);
+      console.error("Error getting initial status/config:", err);
       registrationStatus.value = 'Error';
+      errorMessage.value = 'Failed to load initial config.';
   }
 
+  // Listen for config changes (specifically for audio output)
+  // Note: A more robust way might be needed if settings window can stay open
+  // and change settings without restarting the UA.
+  removeConfigListener = window.electronAPI.on('sip:event:config-updated', (newConfig) => {
+      console.log('Renderer received sip:event:config-updated:', newConfig);
+      currentConfig.value = newConfig;
+      setAudioOutputDevice();
+  });
 
   // Listen for registration status updates
   removeRegStatusListener = window.electronAPI.on('sip:event:registration-status', (status) => {
@@ -313,7 +331,37 @@ onUnmounted(() => {
   if (removeCallStateListener) removeCallStateListener();
   if (removeErrorListener) removeErrorListener();
   if (removeStreamListener) removeStreamListener();
+  if (removeConfigListener) removeConfigListener();
 });
+
+// --- Audio Output Helper ---
+async function setAudioOutputDevice() {
+  if (!remoteAudio.value) {
+    console.warn('Audio element not available yet for setting sink ID.');
+    return;
+  }
+  // Use optional chaining and nullish coalescing for safety
+  const deviceId = currentConfig.value?.audioOutputDeviceId ?? 'default';
+  console.log(`Attempting to set audio output device to: ${deviceId}`);
+
+  // Check if setSinkId exists and the deviceId is not empty/null
+  if (typeof remoteAudio.value.setSinkId === 'function' && deviceId) {
+    try {
+      // Ensure the deviceId isn't accidentally empty before calling
+      await remoteAudio.value.setSinkId(deviceId === 'default' ? '' : deviceId);
+      console.log(`Audio output device successfully set to: ${deviceId === 'default' ? 'System Default' : deviceId}`);
+    } catch (err) {
+      console.error(`Error setting audio output device (sinkId: ${deviceId}):`, err);
+      errorMessage.value = `Failed to set audio output: ${err.name}`; // Show error like NotAllowedError, NotFoundError
+    }
+  } else if (!deviceId) {
+      console.warn('No specific audio output device ID selected or available in config.');
+  } else {
+    console.warn('setSinkId is not supported by this browser/audio element.');
+    // Optionally inform the user that output selection isn't supported
+    // errorMessage.value = "Audio output device selection not supported.";
+  }
+}
 
 </script>
 

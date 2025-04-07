@@ -28,7 +28,29 @@
         <input type="text" id="sip-displayname" v-model="config.displayName" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-gray-900" placeholder="Your Name">
       </div>
 
-      <!-- Add more fields as needed (Transport, etc.) -->
+      <!-- Audio Input Select -->
+      <div>
+        <label for="audio-input" class="block text-sm font-medium text-gray-700">Audio Input (Microphone)</label>
+        <select id="audio-input" v-model="config.audioInputDeviceId" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-gray-900">
+          <option value="default">Default</option>
+          <option v-for="device in audioInputDevices" :key="device.deviceId" :value="device.deviceId">
+            {{ device.label || `Microphone ${audioInputDevices.indexOf(device) + 1}` }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Audio Output Select -->
+      <div>
+        <label for="audio-output" class="block text-sm font-medium text-gray-700">Audio Output (Speaker)</label>
+        <select id="audio-output" v-model="config.audioOutputDeviceId" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-gray-900">
+           <option value="default">Default</option>
+           <option v-for="device in audioOutputDevices" :key="device.deviceId" :value="device.deviceId">
+            {{ device.label || `Speaker ${audioOutputDevices.indexOf(device) + 1}` }}
+          </option>
+        </select>
+      </div>
+
+      <hr class="my-4 border-gray-600">
 
       <div class="flex justify-end space-x-2 pt-4">
          <span class="text-sm text-gray-600 mr-auto">Status: {{ registrationStatus }}</span>
@@ -42,19 +64,50 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 
+// Refs for audio devices
+const audioInputDevices = ref([]);
+const audioOutputDevices = ref([]);
+
 const config = ref({
   server: '',
   port: 5060,
   username: '',
   password: '',
-  displayName: ''
-  // Add defaults for other fields
+  displayName: '',
+  audioInputDeviceId: 'default', // Default device
+  audioOutputDeviceId: 'default' // Default device
 });
 
 const registrationStatus = ref('Unknown');
 let removeStatusListener = null;
 
 // --- Methods ---
+
+// Function to get audio devices
+async function getAudioDevices() {
+  try {
+    // Request permission first (might be needed explicitly in some cases)
+    await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    audioInputDevices.value = devices.filter(device => device.kind === 'audioinput');
+    audioOutputDevices.value = devices.filter(device => device.kind === 'audiooutput');
+    console.log('Audio Input Devices:', audioInputDevices.value);
+    console.log('Audio Output Devices:', audioOutputDevices.value);
+
+    // Ensure selected device still exists, otherwise reset to default
+    if (!audioInputDevices.value.some(d => d.deviceId === config.value.audioInputDeviceId)) {
+        config.value.audioInputDeviceId = 'default';
+    }
+    if (!audioOutputDevices.value.some(d => d.deviceId === config.value.audioOutputDeviceId)) {
+        config.value.audioOutputDeviceId = 'default';
+    }
+
+  } catch (err) {
+    console.error('Error enumerating audio devices:', err);
+    // Handle error - maybe show a message to the user
+  }
+}
 
 async function loadSettings() {
   try {
@@ -93,7 +146,11 @@ function closeWindow() {
 // --- Lifecycle Hooks ---
 
 onMounted(() => {
-  loadSettings();
+  loadSettings(); // Load SIP config first
+  getAudioDevices(); // Then get audio devices
+
+  // Listen for device changes (optional but good practice)
+  navigator.mediaDevices.addEventListener('devicechange', getAudioDevices);
 
   // Listen for registration status updates from the main process
   removeStatusListener = window.electronAPI.on('sip:event:registration-status', (status) => {
@@ -106,6 +163,8 @@ onUnmounted(() => {
   if (removeStatusListener) {
     removeStatusListener();
   }
+  // Remove device change listener
+  navigator.mediaDevices.removeEventListener('devicechange', getAudioDevices);
 });
 
 </script>

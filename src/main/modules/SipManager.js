@@ -167,6 +167,8 @@ export default class SipManager {
     async updateConfigAndRegister(newConfig) {
         console.log('[SipManager] Updating config and restarting UA.');
         this.saveConfig(newConfig);
+        // Broadcast the config update so renderers (like Main.vue for audio output) can react
+        this.app.broadcastToWindows('sip:event:config-updated', this.config);
         await this.stopUA(); // Stop existing UA if any
         return this.startUA(); // Start new UA with updated config
     }
@@ -406,9 +408,14 @@ export default class SipManager {
         const targetUri = `sip:${target}@${this.config.server}`; // Construct target URI
         console.log(`[SipManager] Attempting to call ${targetUri}`);
 
+        // Construct media constraints using selected input device
+        const audioConstraint = this.config.audioInputDeviceId && this.config.audioInputDeviceId !== 'default'
+            ? { deviceId: { exact: this.config.audioInputDeviceId } }
+            : true; // Use default device if not specified
+
         const options = {
             'eventHandlers': {}, // We set handlers via .on() on the session later
-            'mediaConstraints': { 'audio': true, 'video': false }, // Audio only call
+            'mediaConstraints': { 'audio': audioConstraint, 'video': false }, // Audio only call
             // Add other options like extraHeaders if needed
         };
 
@@ -437,8 +444,14 @@ export default class SipManager {
         }
 
         console.log('[SipManager] Answering incoming call...');
+
+        // Construct media constraints using selected input device
+        const audioConstraint = this.config.audioInputDeviceId && this.config.audioInputDeviceId !== 'default'
+            ? { deviceId: { exact: this.config.audioInputDeviceId } }
+            : true; // Use default device if not specified
+
         const options = {
-            'mediaConstraints': { 'audio': true, 'video': false }
+            'mediaConstraints': { 'audio': audioConstraint, 'video': false }
         };
         this.currentSession.answer(options);
         // Call state will transition via session event handlers ('accepted', 'confirmed')
