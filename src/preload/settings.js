@@ -27,4 +27,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }
 });
 
-console.log('Preload script for main window loaded.');
+console.log('Preload script for settings window loaded.');

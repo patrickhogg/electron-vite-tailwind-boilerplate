@@ -10,10 +10,11 @@ export default defineConfig({
   preload: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      // Keep only the main preload script
+      // Define preload scripts for each window
       rollupOptions: {
         input: {
-          main: resolve(__dirname, 'src/preload/main.js')
+          main: resolve(__dirname, 'src/preload/main.js'),
+          settings: resolve(__dirname, 'src/preload/settings.js') // Add settings preload
         }
       }
     }
@@ -26,10 +27,11 @@ export default defineConfig({
     },
     plugins: [vue()],
     build: {
-      // Keep only the main renderer entry
+      // Define HTML entry points for each window
       rollupOptions: {
         input: {
-          main: resolve(__dirname, 'src/renderer/main.html')
+          main: resolve(__dirname, 'src/renderer/main.html'),
+          settings: resolve(__dirname, 'src/renderer/settings.html') // Add settings HTML
         }
       }
     }

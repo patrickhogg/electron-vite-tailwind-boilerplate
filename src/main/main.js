@@ -9,7 +9,8 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset'; // Assuming you might want an icon later
 import { join } from 'path';
 import Main from './controllers/Main.js';
-
+import Settings from './controllers/Settings.js'; // Import Settings controller
+import SipManager from './modules/SipManager.js'; // Import SipManager
 
 export default class GptApp {
   /**
@@ -53,21 +54,58 @@ export default class GptApp {
     // Quit the application when all windows are closed (except on macOS)
     app.on('window-all-closed', () => {
       if (process.platform !== 'darwin') {
-        app.quit();
+        scope.quit(); // Call the enhanced quit method
       }
+    });
+
+    // Ensure SipManager stops when app quits unexpectedly or via Cmd+Q etc.
+    app.on('before-quit', async (event) => {
+        if (this.sipManager && !this._quitting) { // Prevent recursion if quit() called this
+             this._quitting = true;
+             event.preventDefault(); // Prevent immediate quit
+             console.log('Before quit: Stopping SipManager...');
+             await this.sipManager.stopUA();
+             console.log('SipManager stopped, quitting app now.');
+             app.quit(); // Now quit for real
+        }
     });
 
   }
   /**
    * Initializes the application by setting up controllers and windows.
    */
-  init() {
+  async init() { // Make init async
     this._windowHandlers = {};
     this._windows = {};
+    this.sipManager = null; // Initialize sipManager property
 
-    // Add only the Main controller
+    // Instantiate SipManager
+    this.sipManager = new SipManager(this);
+
+    // Add controllers
     this.addController(new Main());
-    
+    this.addController(new Settings());
+
+    // Setup IPC handler to open the settings window
+    ipcMain.on('ui:open-settings-window', () => {
+      this.openWindow(this.getController('settings'));
+    });
+
+    // --- Remove Placeholder IPC Handlers ---
+    // These are now handled within SipManager.bindIpcHandlers()
+    // ipcMain.handle('settings:get-config', ...);
+    // ipcMain.handle('settings:save-config', ...);
+    // ipcMain.handle('sip:get-registration-status', ...);
+    // -----------------------------------------
+
+    // IPC handler for the settings window to request closing itself
+    // Note: The WindowController base class already sets up 'close-id' listener,
+    // so this specific handler might be redundant if Settings.vue uses 'close-settings'.
+    // Let's keep it for clarity for now, but could potentially be removed.
+    ipcMain.on('close-settings', () => {
+        this.closeWindow(this.getController('settings'));
+    });
+
     let controllers = this.controllers();
     for (let i in controllers) {
       this.controllers()[i].onAppReady(this);
@@ -77,10 +115,15 @@ export default class GptApp {
     this.openWindow(this.getController('main'));
   }
   
-  quit() {
+  async quit() {
+    // Gracefully stop SipManager before quitting
+    if (this.sipManager) {
+        console.log('Stopping SipManager before quitting...');
+        await this.sipManager.stopUA(); // Ensure UA is stopped and unregistered
+    }
     this.eApp.quit();
   }
-  
+
   /**
    * Relaunches the application.
    */
@@ -265,6 +308,24 @@ export default class GptApp {
     });
     
     return mainWindow;
+  }
+
+  /**
+   * Broadcasts a message to all currently open renderer windows.
+   * @param {string} channel - The IPC channel name.
+   * @param  {...any} args - Arguments to send.
+   */
+  broadcastToWindows(channel, ...args) {
+    console.log(`[Broadcast] Channel: ${channel}, Args:`, args);
+    Object.values(this._windows).forEach(window => {
+      if (window && !window.isDestroyed() && window.webContents) {
+        try {
+            window.webContents.send(channel, ...args);
+        } catch (error) {
+            console.error(`Error sending IPC message to window: ${error}`);
+        }
+      }
+    });
   }
 }
 
