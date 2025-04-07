@@ -15,10 +15,18 @@
     <!-- Main Content Area -->
     <main class="flex-grow flex flex-col items-center justify-center p-4 space-y-4">
 
-      <!-- Call Info Display -->
+      <!-- Call Info Display (Input Field) -->
       <div class="w-full max-w-xs text-center bg-gray-700 p-3 rounded-lg shadow">
         <div class="text-xs text-gray-400 mb-1">{{ callStateDisplay }}</div>
-        <div class="text-2xl font-mono break-all h-8">{{ displayValue || '&nbsp;' }}</div>
+        <!-- Replace div with input -->
+        <input type="text"
+               v-model="enteredNumber"
+               @paste="handlePaste"
+               @keydown="handleInputKeyDown"
+               :readonly="callState !== 'Idle'" 
+               placeholder="Enter number..."
+               class="w-full bg-gray-700 text-white text-2xl font-mono text-center h-8 border-none focus:ring-0 p-0 m-0"
+        />
       </div>
 
       <!-- Mic Level Indicator -->
@@ -77,7 +85,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 
 // --- Refs ---
 const registrationStatus = ref('Loading...');
@@ -151,6 +159,13 @@ const callButtonClass = computed(() => {
 
 
 // --- Methods ---
+
+// Filter input to allow only valid dial characters
+function sanitizeInput(input) {
+  return input.replace(/[^0-9*#]/g, '');
+}
+
+// Handle dial pad button clicks
 function handleKeyPress(key) {
   // Allow entering numbers only when idle
   if (callState.value === 'Idle') {
@@ -164,11 +179,55 @@ function handleBackspace() {
     }
 }
 
+// Handle paste event into the input field
+function handlePaste(event) {
+  if (callState.value !== 'Idle') {
+    event.preventDefault();
+    return;
+  }
+  const pastedText = (event.clipboardData || window.clipboardData).getData('text');
+  const sanitized = sanitizeInput(pastedText);
+  // Prevent default paste and update model directly after sanitizing
+  event.preventDefault();
+  enteredNumber.value = sanitized; 
+}
+
+// Handle keyboard input in the input field
+function handleInputKeyDown(event) {
+   if (callState.value !== 'Idle') {
+    event.preventDefault();
+    return;
+  }
+  // Allow navigation keys (arrows, home, end, delete, backspace)
+  if ([ 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Delete', 'Backspace', 'Tab' ].includes(event.key)) {
+    return; 
+  }
+  // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X (Cmd on Mac)
+  if ((event.ctrlKey || event.metaKey) && ['a', 'c', 'v', 'x'].includes(event.key.toLowerCase())) {
+      return;
+  }
+
+  // Prevent invalid characters
+  if (!/[0-9*#]/.test(event.key)) {
+    event.preventDefault();
+  }
+}
+
 function clearDisplay() {
     if (callState.value === 'Idle') {
         enteredNumber.value = '';
     }
 }
+
+// Watch for direct changes to enteredNumber (e.g., from paste) and sanitize
+watch(enteredNumber, (newValue) => {
+    if (callState.value === 'Idle') {
+        const sanitized = sanitizeInput(newValue);
+        if (sanitized !== newValue) {
+            enteredNumber.value = sanitized;
+        }
+    }
+});
 
 function clearError() {
     errorMessage.value = '';

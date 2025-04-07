@@ -1,3 +1,6 @@
+// Polyfill WebSocket for Node.js environment BEFORE importing JsSIP
+import { WebSocket } from 'ws';
+global.WebSocket = WebSocket;
 
 import * as JsSIP from 'jssip';
 // Remove static import: import Store from 'electron-store';
@@ -193,7 +196,24 @@ export default class SipManager {
         }
 
         try {
-            const socket = new JsSIP.WebSocketInterface(`wss://${this.config.server}:${this.config.port || 443}`); // Assuming WSS, adjust if needed based on config.transport
+            // Determine protocol and default port based on config.transport
+            const transport = this.config.transport?.toUpperCase() || 'WSS'; // Default to WSS
+            const protocol = transport === 'WSS' ? 'wss' : 'ws';
+            const defaultPort = transport === 'WSS' ? 443 : 80; // Standard default ports
+            const port = this.config.port || defaultPort;
+            const serverAddress = `${protocol}://${this.config.server}:${port}`;
+
+            console.log(`[SipManager] Attempting to connect WebSocket to: ${serverAddress}`);
+
+            const socketOptions = {};
+            // If using WSS with a self-signed cert, might need to reject unauthorized
+            // IMPORTANT: This bypasses certificate validation - ONLY use if you TRUST the server
+            // and understand the security implications. DO NOT use for public servers.
+            if (protocol === 'wss' /* && this.config.allowSelfSignedCert */) {
+                 // socketOptions.rejectUnauthorized = false; // Example: Add this if needed
+            }
+
+            const socket = new JsSIP.WebSocketInterface(serverAddress, socketOptions);
 
             const configuration = {
                 sockets: [socket],

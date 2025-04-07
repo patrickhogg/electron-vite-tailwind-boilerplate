@@ -28,6 +28,16 @@
         <input type="text" id="sip-displayname" v-model="config.displayName" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-gray-900" placeholder="Your Name">
       </div>
 
+      <!-- Transport Select -->
+      <div>
+        <label for="sip-transport" class="block text-sm font-medium text-gray-700">Transport</label>
+        <select id="sip-transport" v-model="config.transport" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-gray-900">
+          <option value="WSS">WSS (Secure WebSocket)</option>
+          <option value="WS">WS (WebSocket)</option>
+          <!-- Add other transports like UDP/TCP if SipManager supports them -->
+        </select>
+      </div>
+
       <!-- Audio Input Select -->
       <div>
         <label for="audio-input" class="block text-sm font-medium text-gray-700">Audio Input (Microphone)</label>
@@ -74,6 +84,7 @@ const config = ref({
   username: '',
   password: '',
   displayName: '',
+  transport: 'WSS', // Add transport to config ref
   audioInputDeviceId: 'default', // Default device
   audioOutputDeviceId: 'default' // Default device
 });
