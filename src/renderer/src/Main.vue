@@ -21,6 +21,15 @@
         <div class="text-2xl font-mono break-all h-8">{{ displayValue || '&nbsp;' }}</div>
       </div>
 
+      <!-- Mic Level Indicator -->
+      <div class="w-full max-w-xs px-2">
+        <label for="micLevel" class="text-xs text-gray-400">Mic Level:</label>
+        <progress id="micLevel" :value="micLevel" max="100" class="w-full h-2 rounded overflow-hidden appearance-none
+          [&::-webkit-progress-bar]:bg-gray-600
+          [&::-webkit-progress-value]:bg-green-500
+          [&::-moz-progress-bar]:bg-green-500"></progress>
+      </div>
+
       <!-- Dial Pad -->
       <div class="grid grid-cols-3 gap-3 w-full max-w-xs">
         <button v-for="key in dialPadKeys" :key="key" @click="handleKeyPress(key)"
@@ -89,6 +98,14 @@ let removeConfigListener = null; // Listener for config updates (for output devi
 
 // --- Refs for Config ---
 const currentConfig = ref(null);
+
+// --- Refs for Mic Level ---
+const micLevel = ref(0); // 0 to 100
+let audioContext = null;
+let analyserNode = null;
+let microphoneSource = null;
+let volumeProcessor = null;
+let animationFrameId = null;
 
 // --- Computed Properties ---
 const statusColor = computed(() => {
@@ -247,6 +264,11 @@ onMounted(async () => {
       errorMessage.value = 'Failed to load initial config.';
   }
 
+  // Start microphone analysis if config loaded
+  if (currentConfig.value) {
+      startMicAnalysis();
+  }
+
   // Listen for config changes (specifically for audio output)
   // Note: A more robust way might be needed if settings window can stay open
   // and change settings without restarting the UA.
@@ -254,6 +276,8 @@ onMounted(async () => {
       console.log('Renderer received sip:event:config-updated:', newConfig);
       currentConfig.value = newConfig;
       setAudioOutputDevice();
+      // Restart mic analysis if input device changed
+      startMicAnalysis(); // Restart with potentially new device
   });
 
   // Listen for registration status updates
@@ -332,7 +356,92 @@ onUnmounted(() => {
   if (removeErrorListener) removeErrorListener();
   if (removeStreamListener) removeStreamListener();
   if (removeConfigListener) removeConfigListener();
+
+  // Stop microphone analysis
+  stopMicAnalysis();
 });
+
+// --- Audio Input (Microphone Level) Helpers ---
+
+async function startMicAnalysis() {
+  console.log('Starting microphone analysis...');
+  stopMicAnalysis(); // Stop previous instance if any
+
+  try {
+    const deviceId = currentConfig.value?.audioInputDeviceId;
+    const constraints = {
+      audio: deviceId && deviceId !== 'default' ? { deviceId: { exact: deviceId } } : true,
+      video: false
+    };
+    console.log('Mic constraints:', constraints);
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    analyserNode = audioContext.createAnalyser();
+    analyserNode.fftSize = 256; // Smaller FFT size for faster analysis
+    microphoneSource = audioContext.createMediaStreamSource(stream);
+
+    // Connect source to analyser
+    microphoneSource.connect(analyserNode);
+
+    // We don't connect to destination, just analysing
+
+    const bufferLength = analyserNode.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    function updateLevel() {
+      analyserNode.getByteFrequencyData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        sum += dataArray[i];
+      }
+      let average = sum / bufferLength;
+      // Scale average (0-255) to a 0-100 level
+      // This scaling might need adjustment based on typical levels
+      micLevel.value = Math.min(100, Math.max(0, (average / 128) * 100));
+
+      animationFrameId = requestAnimationFrame(updateLevel);
+    }
+
+    updateLevel(); // Start the loop
+
+    // Store the stream to stop its tracks later
+    volumeProcessor = stream;
+
+    console.log('Microphone analysis started.');
+
+  } catch (err) {
+    console.error('Error starting microphone analysis:', err);
+    errorMessage.value = `Mic Error: ${err.name}`;
+    stopMicAnalysis(); // Clean up on error
+  }
+}
+
+function stopMicAnalysis() {
+  console.log('Stopping microphone analysis...');
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+  if (volumeProcessor) {
+    volumeProcessor.getTracks().forEach(track => track.stop());
+    volumeProcessor = null;
+  }
+  if (microphoneSource) {
+    microphoneSource.disconnect();
+    microphoneSource = null;
+  }
+  if (analyserNode) {
+    analyserNode.disconnect(); // Should be disconnected already, but just in case
+    analyserNode = null;
+  }
+  if (audioContext && audioContext.state !== 'closed') {
+    audioContext.close();
+    audioContext = null;
+  }
+  micLevel.value = 0; // Reset level
+  console.log('Microphone analysis stopped.');
+}
 
 // --- Audio Output Helper ---
 async function setAudioOutputDevice() {
