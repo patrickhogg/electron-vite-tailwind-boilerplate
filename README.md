@@ -1,14 +1,22 @@
-# Electron + Vite + Vue + Tailwind Boilerplate
+# Electron + Vite + Vue + Tailwind SIP Softphone
 
-This project serves as a starting point for building cross-platform desktop applications using Electron, Vite, Vue 3, and Tailwind CSS. It provides a basic structure, build configurations, and a simple window management pattern.
+This project is a basic SIP (Session Initiation Protocol) softphone built using Electron, Vite, Vue 3, and Tailwind CSS. It allows users to configure a SIP account, register with a SIP server, and make/receive audio calls.
+
+This project started from a basic Electron/Vite/Vue/Tailwind boilerplate and was extended to include SIP functionality.
 
 ## Features
 
 *   **Frameworks:** Electron, Vue 3
 *   **Bundler:** Vite (with `electron-vite`)
-*   **Styling:** Tailwind CSS
-*   **Linting/Formatting:** ESLint, Prettier
-*   **Basic Window Management:** Includes `GptApp` and `WindowController` classes for managing application windows.
+*   **Styling:** Tailwind CSS (with `@tailwindcss/forms`)
+*   **SIP Communication:** Uses `JsSIP` library in the main process.
+*   **Window Management:** Custom `GptApp` and `WindowController` classes.
+*   **UI:**
+    *   Main window with dial pad, call controls, and status display.
+    *   Separate settings window for SIP account configuration.
+*   **Configuration:** Uses `electron-store` to persist SIP settings.
+*   **State Management:** Basic state management within Vue components and the main process `SipManager`.
+*   **IPC:** Uses Electron's Inter-Process Communication (`ipcMain`, `ipcRenderer`, `contextBridge`) for communication between main and renderer processes.
 *   **Hot Reloading:** Enabled for development via Vite.
 
 ## Project Structure
@@ -20,37 +28,56 @@ boiler-plate/
 ├── package.json                # Project metadata and dependencies
 ├── postcss.config.js           # Configuration for PostCSS (used by Tailwind)
 ├── README.md                   # This file
-├── src/
-│   ├── main/                   # Main process source code
-│   │   ├── controllers/        # Window-specific logic controllers
-│   │   │   └── Main.js         # Controller for the main window
-│   │   ├── modules/            # Reusable main process modules
-│   │   │   └── WindowController.js # Base class for window controllers
-│   │   └── main.js             # Main process entry point (GptApp class)
-│   ├── preload/                # Preload scripts
-│   │   └── main.js             # Preload script for the main window
-│   └── renderer/               # Renderer process source code (UI)
-│       ├── main.html           # HTML entry point for the main window
-│       └── src/
-│           ├── assets/         # Static assets (CSS, images, etc.)
-│           │   └── base.css    # Base Tailwind CSS setup
-│           ├── main.js         # Renderer process entry point (Vue app initialization)
-│           └── Main.vue        # Root Vue component for the main window
-└── tailwind.config.js        # Configuration for Tailwind CSS
+├── tailwind.config.js        # Configuration for Tailwind CSS
+└── src/
+    ├── main/                   # Main process source code
+    │   ├── controllers/        # Window-specific logic controllers
+    │   │   ├── Main.js         # Controller for the main softphone window
+    │   │   └── Settings.js     # Controller for the settings window
+    │   ├── modules/
+    │   │   ├── SipManager.js   # Core SIP logic (JsSIP, registration, calls)
+    │   │   └── WindowController.js # Base class for window controllers
+    │   └── main.js             # Main process entry point (GptApp class)
+    ├── preload/                # Preload scripts (IPC bridge)
+    │   ├── main.js             # Preload script for the main window
+    │   └── settings.js         # Preload script for the settings window
+    └── renderer/               # Renderer process source code (UI)
+        ├── main.html           # HTML entry point for the main window
+        ├── settings.html       # HTML entry point for the settings window
+        └── src/
+            ├── assets/         # Static assets (CSS, images, etc.)
+            │   └── base.css    # Base CSS with Tailwind directives
+            ├── main.js         # Renderer entry point for main window (Vue init)
+            ├── settings.js     # Renderer entry point for settings window (Vue init)
+            ├── Main.vue        # Root Vue component for the main softphone UI
+            └── Settings.vue    # Root Vue component for the settings UI
 ```
 
 ## Getting Started
 
 1.  **Install Dependencies:**
+    Make sure you have Node.js and npm installed.
     ```bash
     npm install
     ```
+    This installs Electron, Vue, Vite, Tailwind, JsSIP, electron-store, and other necessary packages.
 
 2.  **Run in Development Mode:**
     This command starts the application with hot reloading enabled for both the main and renderer processes.
     ```bash
     npm run dev
     ```
+
+3.  **Configure SIP Account:**
+    *   Click the gear icon (⚙️) in the top-right corner of the main window to open the Settings window.
+    *   Enter your SIP server address, username, password, and optionally a display name.
+    *   Click "Save & Register".
+    *   The status indicator in both windows should update (Connecting... -> Registered/Failed).
+
+4.  **Make/Receive Calls:**
+    *   **Make Call:** Enter a number using the dial pad in the main window and click the green phone button.
+    *   **Answer Call:** When a call comes in, the display will show "Incoming Call" and the caller ID (if available). Click the green phone button to answer.
+    *   **Hang Up/Reject:** Click the red phone button to hang up an active call, cancel an outgoing call, or reject an incoming call.
 
 ## Available Scripts
 
@@ -66,49 +93,71 @@ boiler-plate/
 
 ## Application Architecture
 
-This boilerplate uses Electron's main/renderer process model and includes a basic window management system.
+This application uses Electron's main/renderer process model.
 
 ### Main vs. Renderer Process
 
-*   **Main Process (`src/main/`):** Runs in a Node.js environment and is responsible for the application's lifecycle, creating and managing browser windows (`BrowserWindow`), handling system events, and performing background tasks. The entry point is `src/main/main.js`.
-*   **Renderer Process (`src/renderer/`):** Runs the web page within a `BrowserWindow`. It's responsible for the user interface (UI). Each window runs its own renderer process. The entry point for the main window is `src/renderer/src/main.js`.
-*   **Preload Scripts (`src/preload/`):** Run in a privileged environment before the renderer process's web page loads. They bridge the gap between the main and renderer processes by selectively exposing Node.js/Electron APIs to the renderer via the `contextBridge` (when `contextIsolation` is enabled).
+*   **Main Process (`src/main/`):**
+    *   Runs in Node.js.
+    *   Manages application lifecycle, windows, and system events (`src/main/main.js` - `GptApp`).
+    *   Handles all core SIP logic using `JsSIP` via the `SipManager` module (`src/main/modules/SipManager.js`).
+    *   Manages SIP configuration persistence using `electron-store`.
+    *   Communicates with renderer processes via IPC.
+*   **Renderer Process (`src/renderer/`):**
+    *   Runs web pages within Electron's `BrowserWindow`.
+    *   Responsible for the User Interface (UI), built with Vue 3 and styled with Tailwind CSS.
+    *   Two separate renderer processes exist: one for the main softphone window (`Main.vue`) and one for the settings window (`Settings.vue`).
+    *   Communicates with the main process via IPC exposed through preload scripts.
+*   **Preload Scripts (`src/preload/`):**
+    *   Run in a privileged context before the renderer page loads.
+    *   Bridge the main and renderer processes securely using `contextBridge`.
+    *   Expose specific IPC functions (`invoke`, `send`, `on`) to the renderer under `window.electronAPI`.
 
-### Window Management (`GptApp` & `WindowController`)
+### Key Modules & Flow
 
-The core window management logic resides in two classes:
+1.  **`GptApp` (`src/main/main.js`):** Orchestrates the application. Initializes Electron, instantiates window controllers (`Main`, `Settings`), and instantiates the `SipManager`.
+2.  **`WindowController` (`src/main/modules/WindowController.js`):** Base class for managing window properties and basic IPC (open/close).
+3.  **`Main` / `Settings` Controllers (`src/main/controllers/`):** Extend `WindowController`, defining specific window IDs and settings.
+4.  **`SipManager` (`src/main/modules/SipManager.js`):** The heart of the SIP functionality.
+    *   Initializes `JsSIP.UA` (User Agent).
+    *   Handles loading/saving configuration (`electron-store`).
+    *   Manages SIP registration state.
+    *   Handles `JsSIP` events (registered, unregistered, newRTCSession, etc.).
+    *   Manages call sessions (`RTCSession`).
+    *   Provides methods for making, answering, and hanging up calls.
+    *   Binds IPC handlers (`settings:get-config`, `settings:save-config`, `sip:make-call`, etc.) to interact with renderers.
+    *   Broadcasts status updates (`sip:event:registration-status`, `sip:event:call-state`) to all windows.
+5.  **Vue Components (`Main.vue`, `Settings.vue`):**
+    *   Render the UI.
+    *   Use `window.electronAPI` (exposed by preload scripts) to send commands (e.g., `invoke('sip:make-call', number)`) and receive events (e.g., `on('sip:event:call-state', handler)`).
+    *   Update their internal state based on received events to reflect registration status, call state, etc.
 
-1.  **`GptApp` (`src/main/main.js`)**
-    *   **Role:** The central orchestrator for the Electron application.
-    *   **Responsibilities:**
-        *   Initializes the Electron app (`app.whenReady`).
-        *   Sets up application lifecycle event handlers (`window-all-closed`, `activate`).
-        *   Manages a collection of `WindowController` instances (`_windowHandlers`).
-        *   Manages the actual `BrowserWindow` instances (`_windows`).
-        *   Provides methods for adding controllers (`addController`), opening windows (`openWindow`), closing windows (`closeWindow`), and retrieving controllers (`getController`).
-        *   Initializes controllers via their `onAppReady` method.
+### IPC Channels
 
-2.  **`WindowController` (`src/main/modules/WindowController.js`)**
-    *   **Role:** A *base class* designed to be extended by specific window controllers (like `src/main/controllers/Main.js`).
-    *   **Purpose:** Provides a standardized way to manage the properties and behavior associated with a specific application window.
-    *   **Key Features:**
-        *   `constructor(id, windowSettings)`: Takes a unique `id` (used for preload/renderer file naming) and optional `windowSettings` (like width, height) to configure the `BrowserWindow`.
-        *   `getId()`: Returns the controller's ID.
-        *   `getWindowSettings()`: Returns the configured window settings.
-        *   `onAppReady(app)`: A method intended to be called by `GptApp` after the Electron app is ready. This is the ideal place for subclasses to set up IPC handlers (`ipcMain.handle`, `ipcMain.on`) specific to their window using the provided `app` instance (which is the `GptApp` instance).
+*   **Renderer -> Main (Invoke/Send):**
+    *   `ui:open-settings-window` (Sent from `Main.vue` to `GptApp`)
+    *   `settings:get-config` (Sent from `Settings.vue` to `SipManager`)
+    *   `settings:save-config` (Sent from `Settings.vue` to `SipManager`)
+    *   `sip:get-registration-status` (Sent from `Settings.vue`/`Main.vue` to `SipManager`)
+    *   `sip:make-call` (Sent from `Main.vue` to `SipManager`)
+    *   `sip:answer-call` (Sent from `Main.vue` to `SipManager`)
+    *   `sip:hangup-call` (Sent from `Main.vue` to `SipManager`)
+    *   `close-settings` (Sent from `Settings.vue` to `GptApp`)
+*   **Main -> Renderer (Broadcast):**
+    *   `sip:event:registration-status` (Broadcast from `SipManager`)
+    *   `sip:event:call-state` (Broadcast from `SipManager`)
+    *   `sip:event:error` (Broadcast from `SipManager`)
+    *   `sip:event:remote-stream` (Broadcast from `SipManager` - **Audio handling needs implementation**)
+    *   `sip:event:mute-status` (Broadcast from `SipManager`)
 
-### Adding New Windows (Pattern)
+## Known Issues / Limitations
 
-To add a new window to the application, follow this pattern:
-
-1.  **Create Controller:** Create a new file in `src/main/controllers/` (e.g., `SettingsController.js`) that extends `WindowController`. Define its unique `id` (e.g., 'settings') and any specific `windowSettings`. Implement the `onAppReady` method if needed to handle IPC communication for this window.
-2.  **Create Preload Script:** Create a corresponding preload script in `src/preload/` (e.g., `settings.js`). Expose necessary APIs to the renderer using `contextBridge`.
-3.  **Create Renderer Files:**
-    *   Create an HTML file in `src/renderer/` (e.g., `settings.html`).
-    *   Create a Vue component (e.g., `src/renderer/src/Settings.vue`) for the window's UI.
-    *   Create a renderer entry point script (e.g., `src/renderer/src/settings.js`) to initialize the Vue app for this window.
-4.  **Update Vite Config:** Modify `electron.vite.config.mjs` to include the new preload script and renderer HTML file in the `preload.build.rollupOptions.input` and `renderer.build.rollupOptions.input` sections, respectively.
-5.  **Instantiate in `GptApp`:** In `src/main/main.js`, import the new controller and instantiate it within the `GptApp.init()` method using `this.addController(new SettingsController())`. The `GptApp` will automatically call its `onAppReady` method. You can then open the window using `this.openWindow(this.getController('settings'))` when needed.
+*   **Audio Handling:** The most significant limitation is that **remote audio streams are not currently functional**. The `MediaStream` generated by WebRTC in the main process (`SipManager`) needs a proper mechanism to be transferred to and played in the renderer process (`Main.vue`). The current code includes placeholders but requires a specific solution (e.g., dedicated library, manual track transfer, moving JsSIP to renderer).
+*   **Error Handling:** Error reporting and handling can be improved.
+*   **Call Features:** Advanced features like hold, mute (UI only for now), transfer, multiple calls, video calls are not implemented.
+*   **UI/UX:** The UI is basic and could be significantly enhanced.
+*   **Transport:** Assumes WSS transport for SIP; should be configurable.
+*   **Security:** Storing passwords with `electron-store` is basic. Consider more secure storage mechanisms for production.
 
 ## Building for Production
 
@@ -128,6 +177,4 @@ The distributable files will be located in the `dist/` directory.
 
 ## License
 
-This project is intended as a boilerplate and does not specify a license by default. Feel free to add your own license file (e.g., `LICENSE.md`).
-
-Test line for git tools.
+This project is intended as a demonstration and does not specify a license by default. Feel free to add your own license file (e.g., `LICENSE.md`).
