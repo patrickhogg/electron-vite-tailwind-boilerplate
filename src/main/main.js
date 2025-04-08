@@ -10,7 +10,12 @@ import icon from '../../resources/icon.png?asset'; // Assuming you might want an
 import { join } from 'path';
 import Main from './controllers/Main.js';
 import Settings from './controllers/Settings.js'; // Import Settings controller
-import SipManager from './modules/SipManager.js'; // Import SipManager
+// import SipManager from './modules/SipManager.js'; // REMOVED
+import TwilioManager from './modules/TwilioManager.js'; // Import TwilioManager
+
+// *** ADD VERSION LOGGING ***
+const TWILIO_MANAGER_VERSION = 'REFACTORED_V2'; // Increment this if you change TwilioManager significantly
+console.log(`*** Loading GptApp - TwilioManager Version Check: ${TWILIO_MANAGER_VERSION} ***`);
 
 export default class GptApp {
   /**
@@ -59,16 +64,9 @@ export default class GptApp {
     });
 
     // Ensure SipManager stops when app quits unexpectedly or via Cmd+Q etc.
-    app.on('before-quit', async (event) => {
-        if (this.sipManager && !this._quitting) { // Prevent recursion if quit() called this
-             this._quitting = true;
-             event.preventDefault(); // Prevent immediate quit
-             console.log('Before quit: Stopping SipManager...');
-             await this.sipManager.stopUA();
-             console.log('SipManager stopped, quitting app now.');
-             app.quit(); // Now quit for real
-        }
-    });
+    // Remove the before-quit handler specific to SipManager
+    // Twilio SDK connection is managed in the renderer, no specific main process cleanup needed here for that.
+    // app.on('before-quit', async (event) => { ... });
 
   }
   /**
@@ -77,10 +75,16 @@ export default class GptApp {
   async init() { // Make init async
     this._windowHandlers = {};
     this._windows = {};
-    this.sipManager = null; // Initialize sipManager property
+    // this.sipManager = null; // REMOVED
+    this.twilioManager = null; // Initialize twilioManager property
 
-    // Instantiate SipManager
-    this.sipManager = new SipManager(this);
+    // Instantiate TwilioManager
+    this.twilioManager = new TwilioManager(this);
+    // Initialize the manager (loads store, config, etc.)
+    await this.twilioManager.initialize();
+    // Bind its IPC Handlers (only after initialization is complete)
+    this.twilioManager.bindIpcHandlers(ipcMain);
+    console.log(`*** GptApp Init: TwilioManager IPC Handlers Bound (Version: ${TWILIO_MANAGER_VERSION}) ***`);
 
     // Add controllers
     this.addController(new Main());
@@ -93,9 +97,8 @@ export default class GptApp {
 
     // --- Remove Placeholder IPC Handlers ---
     // These are now handled within SipManager.bindIpcHandlers()
-    // ipcMain.handle('settings:get-config', ...);
-    // ipcMain.handle('settings:save-config', ...);
-    // ipcMain.handle('sip:get-registration-status', ...);
+    // --- Remove Placeholder IPC Handlers ---
+    // These are now handled within TwilioManager.bindIpcHandlers()
     // -----------------------------------------
 
     // IPC handler for the settings window to request closing itself
@@ -116,11 +119,8 @@ export default class GptApp {
   }
   
   async quit() {
-    // Gracefully stop SipManager before quitting
-    if (this.sipManager) {
-        console.log('Stopping SipManager before quitting...');
-        await this.sipManager.stopUA(); // Ensure UA is stopped and unregistered
-    }
+    // No specific Twilio cleanup needed here in the main process for SDK connections
+    // if (this.sipManager) { ... } // REMOVED
     this.eApp.quit();
   }
 
